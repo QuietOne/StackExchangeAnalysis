@@ -5,7 +5,7 @@ import operations.persistance.Neo4j
 
 object DownloadingProcedures {
 
-   //Data for question: What is more popular Java, Clojure or Scala?
+   //Data for question: How similar are Java, Clojure or Scala?
   def downloadDataTags(): Unit = {
      Neo4j.openConnection()
      println("Opened connection")

@@ -57,8 +57,6 @@ object Metrics {
     //similar has been subtracted from sum because it is twice included (once with query5 and once with query6)
     val networkClosurePercent: Double = similarCount.toDouble / (sum - similarCount) * 100
 
-//    println("similar" + similarCount)
-//    println("sum" + sum)
     Neo4j.closeConnection()
     networkClosurePercent
   }
