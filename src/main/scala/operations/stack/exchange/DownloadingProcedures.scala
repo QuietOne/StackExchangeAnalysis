@@ -1,6 +1,6 @@
 package operations.stack.exchange
 
-import models.{SynonymTagsEdge, Tag}
+import models.{Question, SynonymTagsEdge, Tag}
 import operations.persistance.Neo4j
 
 object DownloadingProcedures {
@@ -35,4 +35,29 @@ object DownloadingProcedures {
      Neo4j.closeConnection()
      println("Closed connections")
    }
+
+  def downloadRecommenderData(tagName: String): Unit = {
+    Neo4j.openConnection()
+    println("Opened connection")
+//    Neo4j.persistTag(new Tag(tagName))
+//    println("Tag " + tagName + " persisted")
+//    val synonyms: List[SynonymTagsEdge] =
+//      StackExchangeAPIExtractor.extractTagsSynonyms(tagName, page = 1, pageSize = 100)
+//    Neo4j.persistSynonymTags(synonyms)
+    println("Synonyms for tag " + tagName + " persisted")
+    val allSynonymTags: List[Tag] = Neo4j.extractSynonymTagsIncludingMe(tagName)
+    for (tag <- allSynonymTags) {
+      val questions: List[Question] = StackExchangeAPIExtractor.extractFAQ(tag.name, page = 1, pageSize = 100)
+      Neo4j.persistFAQ(tag.name, questions)
+      println("FAQ for " + tag.name + " persisted")
+      for (question <- questions) {
+        val relatedQuestions: List[Question] =
+          StackExchangeAPIExtractor.extractQuestionsRelated(question.question_id, page = 1, pageSize = 100)
+        Neo4j.persistRelatedQuestions(question, relatedQuestions)
+      }
+      println("Related questions persisted")
+    }
+    Neo4j.closeConnection()
+    println("Closed connection")
+  }
 }

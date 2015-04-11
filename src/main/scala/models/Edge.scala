@@ -18,6 +18,10 @@ case class SynonymTagsEdge(val to_tag: String,
 //------------------------------
 trait TagToQuestionEdge extends Edge
 
+/*
+Belongs edge is kind of broken, because StackExchange API doesn't support
+to get question if tag is known
+ */
 case class BelongsEdge() extends TagToQuestionEdge
 case class FAQEdge() extends TagToQuestionEdge
 

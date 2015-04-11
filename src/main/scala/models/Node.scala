@@ -4,7 +4,7 @@ trait Node
 
 case class Question(val question_id: Int,
                     val link: String,
-                    val tags: List[String],
+                    val tags: List[String] = null,
                     val view_count: Int = 0,
                     val favorite_count: Int = 0,
                     val up_vote_count: Int = 0,
