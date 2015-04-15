@@ -4,36 +4,34 @@ import operations.persistance.Neo4j
 
 
 object Metrics {
-  /*
-  Network Closure: A measure of the completeness of relational triads.
-  An individual’s assumption of network closure (i.e. that their friends are also friends)
-  is called transitivity. Transitivity is an outcome of the individual or situational trait
-  of Need for Cognitive Closure.
 
-  In this example this metrics will be used to identify how close are two tags
+  /**
+   * Method for calculating similarity between two tags.
+   * @param tagName1
+   * @param tagName2
+   * @return number from 0 to 100, where 100 means they very similar, and 0 not at all.
    */
-  def networkClosures(tagName1: String, tagName2: String): Double = {
-    Neo4j.openConnection()
+  def tagSimilarity(tagName1: String, tagName2: String): Double = {
     val query1 =
       """match (t1:Tag)-[:`models.RelatedTagsEdge`]-(n:Tag)-[:`models.RelatedTagsEdge`]-(t2:Tag)
         |where t1.name="""".stripMargin + tagName1 + """" and t2.name="""" + tagName2 + """"
         |return count(distinct n)""".stripMargin
-    var similarCount: Long = Neo4j.executeNetworkClosureQuery(query1)
+    var similarCount: Long = Neo4j.executeCountQuery(query1)
     val query2 =
       """match (t1:Tag)-[:`models.SynonymTagsEdge`]-(:Tag)-[:`models.RelatedTagsEdge`]-(n:Tag)-[:`models.RelatedTagsEdge`]-(t2:Tag)
         |where t1.name="""".stripMargin + tagName1 + """" and t2.name="""" + tagName2 + """"
         |return count(distinct n)""".stripMargin
-    similarCount += Neo4j.executeNetworkClosureQuery(query2)
+    similarCount += Neo4j.executeCountQuery(query2)
     val query3 =
       """match (t1:Tag)-[:`models.RelatedTagsEdge`]-(n:Tag)-[:`models.RelatedTagsEdge`]-(:Tag)-[:`models.SynonymTagsEdge`]-(t2:Tag)
         |where t1.name="""".stripMargin + tagName1 + """" and t2.name="""" + tagName2 + """"
         |return count(distinct n)""".stripMargin
-    similarCount += Neo4j.executeNetworkClosureQuery(query3)
+    similarCount += Neo4j.executeCountQuery(query3)
     val query4 =
       """match (t1:Tag)-[:`models.SynonymTagsEdge`]-(:Tag)-[:`models.RelatedTagsEdge`]-(n:Tag)-[:`models.RelatedTagsEdge`]-(:Tag)-[:`models.SynonymTagsEdge`]-(t2:Tag)
         |where t1.name="""".stripMargin + tagName1 + """" and t2.name="""" + tagName2 + """"
         |return count(distinct n)""".stripMargin
-    similarCount += Neo4j.executeNetworkClosureQuery(query4)
+    similarCount += Neo4j.executeCountQuery(query4)
     val query5 =
       """match (t:Tag)-[:`models.RelatedTagsEdge`]-(n:Tag)
         |where t.name="""".stripMargin + tagName1 + """"
@@ -55,9 +53,6 @@ object Metrics {
     sum += Neo4j.executeCountOfUnion(query6)
 
     //similar has been subtracted from sum because it is twice included (once with query5 and once with query6)
-    val networkClosurePercent: Double = similarCount.toDouble / (sum - similarCount) * 100
-
-    Neo4j.closeConnection()
-    networkClosurePercent
+    similarCount.toDouble / (sum - similarCount) * 100
   }
 }

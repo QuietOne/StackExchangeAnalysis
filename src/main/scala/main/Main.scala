@@ -2,34 +2,51 @@ package main
 
 import models.Question
 import operations.network.analysis.Metrics
+import operations.persistance.Neo4j
 import operations.recommendations.Recommender
+import operations.stack.exchange.DownloadingProcedures
 
 
 object Main extends App {
 
+  /**
+   * Example function for showing similarity between Java, Scala and Clojure
+   */
   def similarityBetweenJavaScalaClojure(): Unit = {
-//    println("Downloading data")
-//    DownloadingProcedures.downloadDataTags()
-    println("Network closures between:")
+    DownloadingProcedures.startDownloadingProcess()
+    DownloadingProcedures.forTagSimilarityMetrics(List("java", "clojure", "scala"))
+    DownloadingProcedures.finishDownloadingProcess()
+    Neo4j.openConnection()
+    println("Tag similarity between:")
     print("Java & Scala:    ")
-    println(Metrics.networkClosures("java","scala"))
+    println(Metrics.tagSimilarity("java","scala"))
     print("Clojure & Scala: ")
-    println(Metrics.networkClosures("clojure","scala"))
+    println(Metrics.tagSimilarity("clojure","scala"))
     print("Java & Clojure:  ")
-    println(Metrics.networkClosures("java","clojure"))
+    println(Metrics.tagSimilarity("java","clojure"))
+    Neo4j.closeConnection()
   }
 
-  def recommendMeQuestionWithTag(tagName: String): Unit = {
-//    println("Downloading data")
-//    DownloadingProcedures.downloadRecommenderData(tagName)
+  /**
+   * Example function for showing interesting "random" questions to specific
+   * @param tagName - name of tag for which you want interesting question. Check if there is tag with that name in
+   *                StackExchange before searching it
+   */
+  def recommendMeQuestionForTag(tagName: String): Unit = {
+    DownloadingProcedures.startDownloadingProcess()
+    DownloadingProcedures.downloadRecommenderData(tagName)
+    DownloadingProcedures.finishDownloadingProcess()
     println("Recommendation for: " + tagName)
-    val recommendedQuestion: List[Question] = Recommender.recommendQuestionsForTag(tagName, 5)
+    val recommendedQuestion: List[Question] = Recommender.recommendQuestionsForTag(tagName, size = 10, depth = 3)
     println("Questions can be reached at links:")
     for (question <- recommendedQuestion) {
       println(question.link)
     }
   }
+
+  //main program
   println("Starting")
-  recommendMeQuestionWithTag("c++")
+  recommendMeQuestionForTag("artificial-intelligence")
   println("Completed")
+
 }
