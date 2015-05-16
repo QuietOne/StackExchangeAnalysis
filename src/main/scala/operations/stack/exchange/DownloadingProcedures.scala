@@ -33,9 +33,10 @@ object DownloadingProcedures {
   }
 
   /**
-   * Downloading procedure for tagSimilarity metrics.
+   * Downloading procedure for similarity metrics.
    * @param tagNames
    * @see Metrics.tagSimilarity
+   * @see Metrics.pointMutualInformation
    */
   def forTagSimilarityMetrics(tagNames: List[String]): Unit = {
     println("Started downloading data for tag similarity for tags: " + tagNames)

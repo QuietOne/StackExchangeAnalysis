@@ -13,17 +13,27 @@ object Main extends App {
    * Example function for showing similarity between Java, Scala and Clojure
    */
   def similarityBetweenJavaScalaClojure(): Unit = {
+    val java = "java"
+    val scala = "scala"
+    val clojure = "clojure"
     DownloadingProcedures.startDownloadingProcess()
-    DownloadingProcedures.forTagSimilarityMetrics(List("java", "clojure", "scala"))
+    DownloadingProcedures.forTagSimilarityMetrics(List(java, clojure, scala))
     DownloadingProcedures.finishDownloadingProcess()
     Neo4j.openConnection()
     println("Tag similarity between:")
-    print("Java & Scala:    ")
-    println(Metrics.tagSimilarity("java","scala"))
-    print("Clojure & Scala: ")
-    println(Metrics.tagSimilarity("clojure","scala"))
-    print("Java & Clojure:  ")
-    println(Metrics.tagSimilarity("java","clojure"))
+    print("Java & Scala:     ")
+    println(Metrics.tagSimilarity(java, scala))
+    print("Clojure & Scala:  ")
+    println(Metrics.tagSimilarity(clojure, scala))
+    print("Java & Clojure:   ")
+    println(Metrics.tagSimilarity(java, clojure))
+    println("Point Mutual Information:")
+    print("Java & Scala:     ")
+    println(Metrics.pointMutualInformation(java, scala))
+    print("Clojure & Scala:  ")
+    println(Metrics.pointMutualInformation(clojure, scala))
+    print("Java & Clojure:   ")
+    println(Metrics.pointMutualInformation(java, clojure))
     Neo4j.closeConnection()
   }
 
@@ -46,7 +56,8 @@ object Main extends App {
 
   //main program
   println("Starting")
-  recommendMeQuestionForTag("artificial-intelligence")
+  //recommendMeQuestionForTag("artificial-intelligence")
+  similarityBetweenJavaScalaClojure()
   println("Completed")
 
 }
