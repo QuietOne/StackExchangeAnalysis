@@ -1,6 +1,7 @@
 package operations.network.analysis
 
 import operations.persistance.Neo4j
+import operations.stack.exchange.StackExchangeAPIExtractor
 
 
 object Metrics {
@@ -55,13 +56,20 @@ object Metrics {
    * @return
    */
   def pointMutualInformation(tagName1: String, tagName2: String): Double = {
-    val intersection = numberOfTagsRelatedTo(tagName1, tagName2)
-    val tag1Related = numberOfTagsRelatedTo(tagName1)
-    val tag2Related = numberOfTagsRelatedTo(tagName2)
-    val all = tag1Related + tag2Related - intersection
+    val intersection = StackExchangeAPIExtractor.extractNumberOfQuestions(tagName1, tagName2)
+//    println("\tIntersection: " + intersection)
+    val tag1Related = StackExchangeAPIExtractor.extractNumberOfQuestions(tagName1)
+//    println("\tTag1Related:  " + tag1Related)
+    val tag2Related = StackExchangeAPIExtractor.extractNumberOfQuestions(tagName2)
+//    println("\tTag2Related:  " + tag2Related)
+    val all = StackExchangeAPIExtractor.extractNumberOfQuestions()
+//    println("\tAll:          " + all)
     val probabilityIntersection: Double = intersection.toDouble / all
+//    println("\tPIntersection:" + probabilityIntersection)
     val probabilityTag1: Double = tag1Related.toDouble / all
+//    println("\tPTag1:        " + probabilityTag1)
     val probabilityTag2: Double = tag2Related.toDouble / all
+//    println("\tPTag2:        " + probabilityTag2)
     math.log(probabilityIntersection / (probabilityTag1 * probabilityTag2)) / math.log(2)
   }
 }

@@ -10,7 +10,7 @@ import operations.stack.exchange.DownloadingProcedures
 object Main extends App {
 
   /**
-   * Example function for showing similarity between Java, Scala and Clojure
+   * Example function for showing tag similarity between Java, Scala and Clojure
    */
   def similarityBetweenJavaScalaClojure(): Unit = {
     val java = "java"
@@ -27,6 +27,13 @@ object Main extends App {
     println(Metrics.tagSimilarity(clojure, scala))
     print("Java & Clojure:   ")
     println(Metrics.tagSimilarity(java, clojure))
+    Neo4j.closeConnection()
+  }
+
+  def similarityBetweenJavaScalaClojureUsingPMI(): Unit = {
+    val java = "java"
+    val scala = "scala"
+    val clojure = "clojure"
     println("Point Mutual Information:")
     print("Java & Scala:     ")
     println(Metrics.pointMutualInformation(java, scala))
@@ -34,7 +41,6 @@ object Main extends App {
     println(Metrics.pointMutualInformation(clojure, scala))
     print("Java & Clojure:   ")
     println(Metrics.pointMutualInformation(java, clojure))
-    Neo4j.closeConnection()
   }
 
   /**
@@ -56,8 +62,8 @@ object Main extends App {
 
   //main program
   println("Starting")
-  //recommendMeQuestionForTag("artificial-intelligence")
-  similarityBetweenJavaScalaClojure()
+//  recommendMeQuestionForTag("artificial-intelligence")
+  similarityBetweenJavaScalaClojureUsingPMI()
   println("Completed")
 
 }

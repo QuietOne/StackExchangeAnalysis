@@ -8,6 +8,21 @@ import org.json4s.native.JsonMethods._
  * Object used for parsing data from StackExchange.
  */
 object StackExchangeParser {
+
+  /**
+   * Extract total parameter in query result
+   * @param json
+   * @return
+   */
+  def parseTotal(json: String): Long = {
+    implicit val formats = DefaultFormats
+    case class Wrapper(val total: Long)
+
+    val jObject = parse(json)
+    val wrapper = jObject.extract[Wrapper]
+    wrapper.total
+  }
+
   /**
    * Extracting questions from specified json format.
    * @param json
