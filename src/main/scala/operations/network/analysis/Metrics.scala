@@ -86,6 +86,7 @@ object Metrics {
     println("\tPTag1:        " + probabilityTag1)
     val probabilityTag2: Double = tag2Related.toDouble / all
     println("\tPTag2:        " + probabilityTag2)
-    math.log(probabilityIntersection / (probabilityTag1 * probabilityTag2)) / math.log(2)
+    val pmi = math.log(probabilityIntersection / (probabilityTag1 * probabilityTag2)) / math.log(2)
+    if (pmi == 0) 0 else - pmi / (math.log(probabilityIntersection) / math.log(2))
   }
 }
