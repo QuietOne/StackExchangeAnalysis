@@ -4,7 +4,7 @@ import java.io.{BufferedInputStream, BufferedReader, InputStream, InputStreamRea
 import java.net.URL
 import java.util.zip.GZIPInputStream
 
-import models.{SynonymTagsEdge, Tag, Question}
+import models.{User, SynonymTagsEdge, Tag, Question}
 
 /**
  * Object used for gzip converting helper functions, as they are needed for extracting data from StackExchange API.
@@ -33,29 +33,6 @@ object StackExchangeURL {
   def questions(page: Int = 1, pageSize: Int = 100) = {
     base + "/questions?page=" + page + "&pagesize=" + pageSize + "" +
       "&order=desc&sort=activity&site=stackoverflow"
-  }
-
-  /**
-   * Get number of questions with selected tags.
-   * @param tagNames
-   * @return
-   */
-  def numberOfQuestionsWith(tagNames: Seq[String]) = {
-    if (tagNames.isEmpty) {
-      base + "/questions?order=desc&sort=activity" +
-        "&site=stackoverflow&filter=!2.dt38CU)5Om0y-066.A0"
-    } else {
-      val tags: String = if (tagNames.length == 1) tagNames.head
-      else {
-        val s: StringBuilder = new StringBuilder
-        for (name <- tagNames.tail) {
-          s ++= ";" + name
-        }
-        tagNames.head + s.result()
-      }
-      base + "/questions?order=desc&sort=activity&tagged=" + tags +
-        "&site=stackoverflow&filter=!2.dt38CU)5Om0y-066.A0"
-    }
   }
 
   /**
@@ -138,6 +115,52 @@ object StackExchangeURL {
     base + "/tags/" + tag + "/synonyms?page=" + page + "&pagesize=" + pageSize +
       "&order=desc&sort=creation&site=stackoverflow"
   }
+
+  def topTagsByUser(user_id: Long, page: Int = 1, pageSize: Int = 100) = {
+    base + "/users/" + user_id + "/top-tags?page=" + page +
+      "&pagesize=" + pageSize + "&site=stackoverflow&filter=!*LhguP78F5K9p3El"
+  }
+
+  /**
+   * Get number of questions with selected tags.
+   * @param tagNames
+   * @return
+   */
+  def numberOfQuestionsWith(tagNames: Seq[String]) = {
+    if (tagNames.isEmpty) {
+      base + "/questions?order=desc&sort=activity" +
+        "&site=stackoverflow&filter=!2.dt38CU)5Om0y-066.A0"
+    } else {
+      val tags: String = if (tagNames.length == 1) tagNames.head
+      else {
+        val s: StringBuilder = new StringBuilder
+        for (name <- tagNames.tail) {
+          s ++= ";" + name
+        }
+        tagNames.head + s.result()
+      }
+      base + "/questions?order=desc&sort=activity&tagged=" + tags +
+        "&site=stackoverflow&filter=!2.dt38CU)5Om0y-066.A0"
+    }
+  }
+
+  /**
+   * Get user Ids by selected tags.
+   * @param tagNames
+   * @return
+   */
+  def topAskersByTags(tagNames: Seq[String]) = {
+    val tags: String = if (tagNames.length == 1) tagNames.head
+    else {
+      val s: StringBuilder = new StringBuilder
+      for (name <- tagNames.tail) {
+        s ++= ";" + name
+      }
+      tagNames.head + s.result()
+    }
+    base + "/tags/" + tags +
+      "/top-askers/all_time?site=stackoverflow&filter=!SWKA(oWp7bBuB2dAD4"
+  }
 }
 
 /**
@@ -150,11 +173,16 @@ object StackExchangeAPIExtractor {
    * @param url
    * @return
    */
-  def getJson(url: String): String = {
+  def getJson(url: String, compressor: Boolean = true): String = {
     val inputStream = new URL(url).openStream()
-    val gzipInputStream = GZIPDecompressor.toGZIPInputStream(inputStream)
-    val bufferedReader = GZIPDecompressor.toBufferedReader(gzipInputStream)
-    bufferedReader.readLine()
+    if (compressor) {
+      val gzipInputStream = GZIPDecompressor.toGZIPInputStream(inputStream)
+      val bufferedReader = GZIPDecompressor.toBufferedReader(gzipInputStream)
+      bufferedReader.readLine()
+    } else {
+      val bufferedReader = new BufferedReader(new InputStreamReader(new BufferedInputStream(inputStream)))
+      bufferedReader.readLine()
+    }
   }
 
   /**
@@ -272,5 +300,24 @@ object StackExchangeAPIExtractor {
     //    val json = """{"items":[{"creation_date":1408392375,"last_applied_date":1421854151,"applied_count":51,"to_tag":"java","from_tag":"java-libraries"},{"creation_date":1377674210,"last_applied_date":1427555683,"applied_count":650,"to_tag":"java","from_tag":"jre"},{"creation_date":1377674185,"last_applied_date":1427939444,"applied_count":1098,"to_tag":"java","from_tag":"jdk"},{"creation_date":1309971294,"last_applied_date":1426504479,"applied_count":41,"to_tag":"java","from_tag":"core-java"},{"creation_date":1309951237,"last_applied_date":1427810354,"applied_count":114,"to_tag":"java","from_tag":"j2se"},{"creation_date":1306826783,"last_applied_date":1426765498,"applied_count":48,"to_tag":"java","from_tag":".java"},{"creation_date":1284690882,"last_applied_date":1412087170,"applied_count":61,"to_tag":"java","from_tag":"java-se"}],"has_more":false,"quota_max":300,"quota_remaining":291}"""
     //    println(json)
     StackExchangeParser.parseSynonymTags(json)
+  }
+
+  def extractTopTagsByUser(user_id: Long, page: Int = 1, pageSize: Int = 100): List[Tag] = {
+    val json = StackExchangeAPIExtractor.getJson(StackExchangeURL.topTagsByUser(user_id, page, pageSize))
+//    val json = """{"items":[{"tag_name":"c++"},{"tag_name":"performance"},{"tag_name":"optimization"},{"tag_name":"java"},{"tag_name":"c++-faq"},{"tag_name":"copy-constructor"},{"tag_name":"copy-and-swap"},{"tag_name":"assignment-operator"},{"tag_name":"c++11"},{"tag_name":"c"},{"tag_name":"templates"},{"tag_name":"stl"},{"tag_name":"pointers"},{"tag_name":"vector"},{"tag_name":"arrays"},{"tag_name":"rvalue-reference"},{"tag_name":"boost"},{"tag_name":"perfect-forwarding"},{"tag_name":"string"},{"tag_name":"constructor"},{"tag_name":"memory-management"},{"tag_name":"map"},{"tag_name":"class"},{"tag_name":"types"},{"tag_name":"typedef"},{"tag_name":"reference"},{"tag_name":"visual-c++"},{"tag_name":"gcc"},{"tag_name":"function"},{"tag_name":"compiler-errors"},{"tag_name":"iterator"},{"tag_name":"operator-overloading"},{"tag_name":"standards-compliance"},{"tag_name":"undefined-behavior"},{"tag_name":"winapi"},{"tag_name":"exception"},{"tag_name":"g++"},{"tag_name":"language-lawyer"},{"tag_name":"const"},{"tag_name":"lambda"},{"tag_name":"casting"},{"tag_name":"memory"},{"tag_name":"unordered-map"},{"tag_name":"null-pointer"},{"tag_name":"inheritance"},{"tag_name":"destructor"},{"tag_name":"sizeof"},{"tag_name":"copy"},{"tag_name":"overloading"},{"tag_name":"oop"},{"tag_name":"foreach"},{"tag_name":"loops"},{"tag_name":"variables"},{"tag_name":"metaprogramming"},{"tag_name":"new-operator"},{"tag_name":"coding-style"},{"tag_name":"linked-list"},{"tag_name":"std"},{"tag_name":"initialization"},{"tag_name":"data-structures"},{"tag_name":"derived"},{"tag_name":"friend"},{"tag_name":"compiler-warnings"},{"tag_name":"windows"},{"tag_name":"api"},{"tag_name":"boolean"},{"tag_name":"exception-handling"},{"tag_name":"fifo"},{"tag_name":"dword"},{"tag_name":"static"},{"tag_name":"memory-leaks"},{"tag_name":"design"},{"tag_name":"for-loop"},{"tag_name":"integer"},{"tag_name":"floating-point"},{"tag_name":"delete"},{"tag_name":"variable-declaration"},{"tag_name":"algorithm"},{"tag_name":"void-pointers"},{"tag_name":"visual-studio-2008"},{"tag_name":"move-semantics"},{"tag_name":"header-files"},{"tag_name":"multithreading"},{"tag_name":"shared-ptr"},{"tag_name":"logical-operators"},{"tag_name":"string-literals"},{"tag_name":"error-handling"},{"tag_name":"linux"},{"tag_name":"compiler-construction"},{"tag_name":"namespaces"},{"tag_name":"return"},{"tag_name":"language-features"},{"tag_name":"object"},{"tag_name":"enums"},{"tag_name":"strong-typing"},{"tag_name":"iostream"},{"tag_name":"visual-studio-2010"},{"tag_name":"macros"},{"tag_name":"stack"},{"tag_name":"mutable"}],"quota_max":300,"quota_remaining":26,"total":684}"""
+//    println(json)
+    StackExchangeParser.parseTopTags(json)
+  }
+
+  /**
+   * Extract top askers for the specific tags from StackExchange API.
+   * @param tags
+   * @return
+   */
+  def extractTopAskers(tags: String*): List[User] = {
+    val json = StackExchangeAPIExtractor.getJson(StackExchangeURL.topAskersByTags(tags), compressor = true)
+//    val json = """{"items":[{"user":{"user_id":87234},"post_count":1,"score":10574},{"user":{"user_id":11236},"post_count":282,"score":3859},{"user":{"user_id":342235},"post_count":121,"score":3518},{"user":{"user_id":44330},"post_count":373,"score":2593},{"user":{"user_id":33203},"post_count":20,"score":2153},{"user":{"user_id":147601},"post_count":188,"score":2117},{"user":{"user_id":892029},"post_count":770,"score":2112},{"user":{"user_id":1127571},"post_count":1,"score":1980},{"user":{"user_id":2648},"post_count":190,"score":1886},{"user":{"user_id":542091},"post_count":2,"score":1718},{"user":{"user_id":187141},"post_count":321,"score":1713},{"user":{"user_id":4316},"post_count":4,"score":1658},{"user":{"user_id":939},"post_count":21,"score":1635},{"user":{"user_id":20400},"post_count":88,"score":1606},{"user":{"user_id":16616},"post_count":2,"score":1534},{"user":{"user_id":63051},"post_count":126,"score":1531},{"user":{"user_id":42155},"post_count":36,"score":1531},{"user":{"user_id":157027},"post_count":220,"score":1433},{"user":{"user_id":276101},"post_count":82,"score":1428},{"user":{"user_id":84916},"post_count":16,"score":1410}],"quota_max":300,"quota_remaining":170,"total":20}"""
+//    println(json)
+    StackExchangeParser.parseUsers(json)
   }
 }

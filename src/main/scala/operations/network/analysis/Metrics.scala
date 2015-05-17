@@ -1,7 +1,10 @@
 package operations.network.analysis
 
+import models.Tag
 import operations.persistance.Neo4j
 import operations.stack.exchange.StackExchangeAPIExtractor
+
+import scala.collection.mutable.ListBuffer
 
 
 object Metrics {
@@ -56,20 +59,33 @@ object Metrics {
    * @return
    */
   def pointMutualInformation(tagName1: String, tagName2: String): Double = {
-    val intersection = StackExchangeAPIExtractor.extractNumberOfQuestions(tagName1, tagName2)
-//    println("\tIntersection: " + intersection)
-    val tag1Related = StackExchangeAPIExtractor.extractNumberOfQuestions(tagName1)
-//    println("\tTag1Related:  " + tag1Related)
-    val tag2Related = StackExchangeAPIExtractor.extractNumberOfQuestions(tagName2)
-//    println("\tTag2Related:  " + tag2Related)
-    val all = StackExchangeAPIExtractor.extractNumberOfQuestions()
-//    println("\tAll:          " + all)
+    val topAskersForTag1 = StackExchangeAPIExtractor.extractTopAskers(tagName1)
+    val topAskersForTag2 = StackExchangeAPIExtractor.extractTopAskers(tagName2)
+
+    val topTagsOfTopAskersForTag1 = ListBuffer.empty[Tag]
+    for (asker <- topAskersForTag1) {
+      topTagsOfTopAskersForTag1 ++= StackExchangeAPIExtractor.extractTopTagsByUser(asker.user_id)
+    }
+    val topTagsOfTopAskersForTag2 = ListBuffer.empty[Tag]
+    for (asker <- topAskersForTag2) {
+      topTagsOfTopAskersForTag2 ++= StackExchangeAPIExtractor.extractTopTagsByUser(asker.user_id)
+    }
+
+    val tag1Related = topTagsOfTopAskersForTag1.distinct.length
+    println("\tTag1Related:  " + tag1Related)
+    val tag2Related = topTagsOfTopAskersForTag2.distinct.length
+    println("\tTag2Related:  " + tag2Related)
+    val intersection = topTagsOfTopAskersForTag1.distinct.intersect(topTagsOfTopAskersForTag2.distinct).length
+    println("\tIntersection: " + intersection)
+    val all = (topTagsOfTopAskersForTag1 ++ topTagsOfTopAskersForTag2).distinct.length
+    println("\tAll:          " + all)
+
     val probabilityIntersection: Double = intersection.toDouble / all
-//    println("\tPIntersection:" + probabilityIntersection)
+    println("\tPIntersection:" + probabilityIntersection)
     val probabilityTag1: Double = tag1Related.toDouble / all
-//    println("\tPTag1:        " + probabilityTag1)
+    println("\tPTag1:        " + probabilityTag1)
     val probabilityTag2: Double = tag2Related.toDouble / all
-//    println("\tPTag2:        " + probabilityTag2)
+    println("\tPTag2:        " + probabilityTag2)
     math.log(probabilityIntersection / (probabilityTag1 * probabilityTag2)) / math.log(2)
   }
 }

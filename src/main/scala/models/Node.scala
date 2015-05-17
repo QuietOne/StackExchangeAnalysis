@@ -34,3 +34,9 @@ case class Question(val question_id: Int,
  * @param name unique name given by StackExchange API
  */
 case class Tag(val name: String) extends Node
+
+/**
+ * User
+ * @param user_id unique id given by StackExchange API
+ */
+case class User(val user_id: Long) extends Node

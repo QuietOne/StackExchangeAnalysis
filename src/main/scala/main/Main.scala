@@ -53,9 +53,9 @@ object Main extends App {
     DownloadingProcedures.downloadRecommenderData(tagName)
     DownloadingProcedures.finishDownloadingProcess()
     println("Recommendation for: " + tagName)
-    val recommendedQuestion: List[Question] = Recommender.recommendQuestionsForTag(tagName, size = 10, depth = 3)
+    val recommendedQuestions: List[Question] = Recommender.recommendQuestionsForTag(tagName, size = 10, depth = 3)
     println("Questions can be reached at links:")
-    for (question <- recommendedQuestion) {
+    for (question <- recommendedQuestions) {
       println(question.link)
     }
   }
