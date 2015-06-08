@@ -34,6 +34,12 @@ case class SynonymTagsEdge(val to_tag: String,
  */
 case class SimilarTagsEdge() extends TagToTagEdge
 
+/**
+ * Edge between two tags that have calculated pmi value.
+ * @param weight pmi normalized pmi value
+ */
+case class PMITagsEdge(val weight: Double) extends TagToTagEdge
+
 //---------------------------------------------------------------------------
 /**
  * Generic edge between tag and question.
@@ -76,3 +82,20 @@ case class RelatedQuestionsEdge() extends QuestionToQuestionEdge
  * other heuristics.
  */
 case class LinkedQuestionsEdge() extends QuestionToQuestionEdge
+
+//-----------------------------------------------------------------------------
+
+/**
+ * Generic edge between tag and user
+ */
+trait TagToUserEdge extends Edge
+
+/**
+ * Edge that defines who are the top askers for some tags.
+ */
+case class TopAskersEdge() extends TagToUserEdge
+
+/**
+ * Edge that defines what are the top tags which user has asked.
+ */
+case class TopTagsEdge() extends TagToUserEdge

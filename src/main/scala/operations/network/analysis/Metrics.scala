@@ -2,7 +2,6 @@ package operations.network.analysis
 
 import models.Tag
 import operations.persistance.Neo4j
-import operations.stack.exchange.StackExchangeAPIExtractor
 
 import scala.collection.mutable.ListBuffer
 
@@ -59,16 +58,16 @@ object Metrics {
    * @return
    */
   def pointMutualInformation(tagName1: String, tagName2: String): Double = {
-    val topAskersForTag1 = StackExchangeAPIExtractor.extractTopAskers(tagName1)
-    val topAskersForTag2 = StackExchangeAPIExtractor.extractTopAskers(tagName2)
+    val topAskersForTag1 = Neo4j.extractTopAskers(tagName1)
+    val topAskersForTag2 = Neo4j.extractTopAskers(tagName2)
 
     val topTagsOfTopAskersForTag1 = ListBuffer.empty[Tag]
     for (asker <- topAskersForTag1) {
-      topTagsOfTopAskersForTag1 ++= StackExchangeAPIExtractor.extractTopTagsByUser(asker.user_id)
+      topTagsOfTopAskersForTag1 ++= Neo4j.extractTopTags(asker.user_id.toString)
     }
     val topTagsOfTopAskersForTag2 = ListBuffer.empty[Tag]
     for (asker <- topAskersForTag2) {
-      topTagsOfTopAskersForTag2 ++= StackExchangeAPIExtractor.extractTopTagsByUser(asker.user_id)
+      topTagsOfTopAskersForTag2 ++= Neo4j.extractTopTags(asker.user_id.toString)
     }
 
     val tag1Related = topTagsOfTopAskersForTag1.distinct.length

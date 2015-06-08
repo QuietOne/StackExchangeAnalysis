@@ -5,6 +5,8 @@ import org.neo4j.graphdb.Node
 import org.neo4j.graphdb._
 import org.neo4j.graphdb.factory.GraphDatabaseFactory
 
+import scala.collection.mutable.ListBuffer
+
 /**
  * Class for embedded neo4j database can be open one at the time, so the additional synchronization options haven't be done,
  * as they are not needed.
@@ -140,6 +142,8 @@ object Neo4j {
       node.setProperty("is_answered", question.is_answered)
       node.setProperty("view_count", question.view_count)
       node.setProperty("question_id", question.question_id.toString)
+      node.setProperty("last_activity_date", question.last_activity_date)
+      node.setProperty("creation_date", question.creation_date)
       transaction.success()
     } catch  {
       case e: ConstraintViolationException => transaction.failure()
@@ -170,6 +174,24 @@ object Neo4j {
    */
   def persistQuestions(questions: List[Question]): Unit = {
     for (question <- questions) persistQuestion(question)
+  }
+
+  def persistUser(user: User): Unit = {
+    val transaction: Transaction = graph.beginTx()
+    try {
+      val node: Node = graph.createNode()
+      node.addLabel(DynamicLabel.label("User"))
+      node.setProperty("user_id", user.user_id.toString)
+      transaction.success()
+    } catch  {
+      case e: ConstraintViolationException => transaction.failure()
+    } finally {
+      transaction.close()
+    }
+  }
+
+  def persistUsers(users: List[User]): Unit = {
+    for (user <- users) persistUser(user)
   }
 
   /**
@@ -208,6 +230,68 @@ object Neo4j {
     val transaction: Transaction = graph.beginTx()
     try {
       node1.createRelationshipTo(node2, rel)
+      transaction.success()
+    } finally {
+      transaction.close()
+    }
+  }
+
+  /**
+   * Method for persisting top askers for given tag.
+   * @param users
+   * @param tag
+   */
+  def persistTopAskers(users: List[User], tag: String): Unit = {
+    persistUsers(users)
+    val node1: Node = findNode("Tag", "name", tag)
+    val rel = new TopAskersEdge
+    for (user <- users) {
+      val node2: Node = findNode("User", "user_id", user.user_id.toString)
+      val transaction: Transaction = graph.beginTx()
+      try {
+        node1.createRelationshipTo(node2, rel)
+        transaction.success()
+      } finally {
+        transaction.close()
+      }
+    }
+  }
+
+  /**
+   * Method for persisting top tags for given user.
+   * @param tags
+   * @param user
+   */
+  def persistTopTags(tags:List[Tag], user: User): Unit = {
+    persistTags(tags)
+    val node1: Node = findNode("User", "user_id", user.user_id.toString)
+    val rel = new TopTagsEdge
+    for (tag <- tags) {
+      val node2: Node = findNode("Tag", "name", tag.name)
+      val transaction: Transaction = graph.beginTx()
+      try {
+        node1.createRelationshipTo(node2, rel)
+        transaction.success()
+      } finally {
+        transaction.close()
+      }
+    }
+  }
+
+  /**
+   * Method for creating pmi connections. Note: both tags should be previously persisted.
+   * @param tag1
+   * @param tag2
+   * @param pmi
+   */
+  def persistPMI(tag1: String, tag2: String, pmi: Double): Unit = {
+    val node1: Node = findNode("Tag", "name", tag1)
+    val node2: Node = findNode("Tag", "name", tag2)
+    val rel = new PMITagsEdge(pmi)
+    val transaction: Transaction = graph.beginTx()
+    try {
+      val relationship = node1.createRelationshipTo(node2, rel)
+      relationship.setProperty("weight", pmi)
       transaction.success()
     } finally {
       transaction.close()
@@ -293,6 +377,70 @@ object Neo4j {
     }
   }
 
+  def extractTopAskers(tagName: String): List[User] = {
+    val transaction: Transaction = graph.beginTx()
+    try {
+      val query =
+        """match (t:Tag)-[:`models.TopAskersEdge`]-(u:User)
+          |where t.name="""".stripMargin + tagName + """"
+          |return distinct u""".stripMargin
+      val result: Result = graph.execute(query)
+      val iterator: ResourceIterator[Node] = result.columnAs("u")
+      val topAskers: ListBuffer[User] = ListBuffer.empty
+      while (iterator.hasNext) {
+        val node: Node = iterator.next()
+        topAskers += new User(node.getProperty("user_id").toString.toLong)
+      }
+      transaction.success()
+      topAskers.result()
+    } finally {
+      transaction.close()
+    }
+  }
+
+  def extractPMI(tagName1: String, tagName2: String): PMITagsEdge = {
+    val transaction: Transaction = graph.beginTx()
+    try {
+      val query =
+        """match (t:Tag)-[r:`models.PMITagsEdge`]-(t2:Tag)
+          |where t.name="""".stripMargin + tagName1 + """" and t2.name="""" + tagName2 + """"
+          |return distinct r""".stripMargin
+      val result: Result = graph.execute(query)
+      val iterator: ResourceIterator[Relationship] = result.columnAs("r")
+      var ret: PMITagsEdge = null
+      if (iterator.hasNext) {
+        val relationship: Relationship = iterator.next()
+        ret = new PMITagsEdge(relationship.getProperty("weight").toString.toDouble)
+      }
+      transaction.success()
+      ret
+    } finally {
+      transaction.close()
+    }
+  }
+
+  def extractTopTags(user_id: String): List[Tag] = {
+    val transaction: Transaction = graph.beginTx()
+    try {
+      val query =
+        """match (t:Tag)-[:`models.TopTagsEdge`]-(u:User)
+          |where u.user_id="""".stripMargin + user_id + """"
+          |return distinct t""".stripMargin
+      val result: Result = graph.execute(query)
+      val iterator: ResourceIterator[Node] = result.columnAs("t")
+      var topTags: List[Tag] = List()
+      while (iterator.hasNext) {
+        val node: Node = iterator.next()
+        val tag: Tag = new Tag(node.getProperty("name").toString)
+        topTags = tag :: topTags
+      }
+      transaction.success()
+      topTags
+    } finally {
+      transaction.close()
+    }
+  }
+
   /**
    * Method for internally converting node data to question.
    * @param node
@@ -301,12 +449,22 @@ object Neo4j {
   private def deserialize(node: Node): Question = {
     val question_id: Int = node.getProperty("question_id").toString.toInt
     val link: String = node.getProperty("link").toString
-    val score: Int = node.getProperty("score").toString.toInt
-    val answer_count: Int = node.getProperty("answer_count").toString.toInt
+    val score: Double = node.getProperty("score").toString.toDouble
+    val answer_count: Double = node.getProperty("answer_count").toString.toDouble
     val is_answered: Boolean = node.getProperty("is_answered").toString.toBoolean
-    val view_count: Int = node.getProperty("view_count").toString.toInt
-    new Question(question_id = question_id, link = link, score = score,
-      answer_count = answer_count, is_answered = is_answered, view_count = view_count)
+    val view_count: Double = node.getProperty("view_count").toString.toDouble
+    val last_activity_date: Double = node.getProperty("last_activity_date").toString.toDouble
+    val creation_date: Double = node.getProperty("creation_date").toString.toDouble
+    new Question(
+      question_id = question_id,
+      link = link,
+      score = score,
+      answer_count = answer_count,
+      is_answered = is_answered,
+      view_count = view_count,
+      last_activity_date = last_activity_date,
+      creation_date = creation_date
+    )
   }
 
   /**
@@ -325,6 +483,52 @@ object Neo4j {
       }
       transaction.success()
       questions
+    } finally {
+      transaction.close()
+    }
+  }
+
+  /**
+   * Method for extracting all tags from database.
+   * @return
+   */
+  def extractTags(): List[Tag] = {
+    val transaction: Transaction = graph.beginTx()
+    try {
+      val iterator: ResourceIterator[Node] = graph.findNodes(DynamicLabel.label("Tag"))
+      var tags: List[Tag] = List()
+      while (iterator.hasNext) {
+        val node: Node = iterator.next()
+        val tag = new Tag(node.getProperty("name").toString)
+        tags = tag :: tags
+      }
+      transaction.success()
+      tags
+    } finally {
+      transaction.close()
+    }
+  }
+
+  def extractClusterForTag(tagName: String): List[Tag] = {
+    val query =
+      """match (t:Tag)-[]-(n:Tag)
+        |where t.name="""".stripMargin + tagName + """"
+        |return n""".stripMargin
+    println(query)
+    val transaction: Transaction = graph.beginTx()
+    try {
+      val result: Result = graph.execute(query)
+//      println(result.resultAsString())
+      val iterator: ResourceIterator[Node] = result.columnAs("n")
+      val cluster: ListBuffer[Tag] = ListBuffer.empty
+      cluster += new Tag(tagName)
+      while (iterator.hasNext) {
+        val node: Node = iterator.next()
+        val tag = new Tag(node.getProperty("name").toString)
+        cluster += tag
+      }
+      transaction.success()
+      cluster.result()
     } finally {
       transaction.close()
     }
@@ -402,6 +606,28 @@ object Neo4j {
     }
   }
 
+  def averagePMIValue: Double = {
+    val transaction: Transaction = graph.beginTx()
+    try {
+      val query =
+        """match (:Tag)-[r:`models.PMITagsEdge`]-(:Tag)
+          |return distinct r""".stripMargin
+      val result: Result = graph.execute(query)
+      val iterator: ResourceIterator[Relationship] = result.columnAs("r")
+      var total: Double = 0
+      var count: Long = 0
+      while (iterator.hasNext) {
+        val relationship: Relationship = iterator.next()
+        total += relationship.getProperty("weight").toString.toDouble
+        count += 1
+      }
+      transaction.success()
+      total / count
+    } finally {
+      transaction.close()
+    }
+  }
+
   /**
    * Check if question belong to certain tag.
    * @param question_id unique id of question
@@ -422,7 +648,46 @@ object Neo4j {
     } finally {
       transaction.close()
     }
+  }
 
+  def ifQuestionIsInRelationshipWithTag(question_id: String, tagName: String): Boolean = {
+    val query =
+      """match (t:Tag)-[r]-(q:Question)
+        |where t.name="""".stripMargin + tagName + """" and q.question_id = """" + question_id + """"
+        |return count(distinct r)""".stripMargin
+    val transaction: Transaction = graph.beginTx()
+    try {
+      val result: Result = graph.execute(query)
+      val value = result.columnAs[Long]("count(distinct r)").next()
+      transaction.success()
+      value > 0
+    } finally {
+      transaction.close()
+    }
+  }
+
+  private def doesNodeHaveRelationship(nodeType: String, nodeIdName: String, nodeId: String, relationshipName: String): Boolean = {
+    val query =
+      """match (node:""" + nodeType + """)-[r:`""" + relationshipName +"""`]-()
+        |where node.""".stripMargin + nodeIdName + """="""" + nodeId + """"
+        |return count(distinct r)""".stripMargin
+    val transaction: Transaction = graph.beginTx()
+    try {
+      val result: Result = graph.execute(query)
+      val value = result.columnAs[Long]("count(distinct r)").next()
+      transaction.success()
+      value > 0
+    } finally {
+      transaction.close()
+    }
+  }
+
+  def doesQuestionHaveRelationship(question: Question, relationship: Edge): Boolean = {
+    doesNodeHaveRelationship("Question", "question_id", question.question_id.toString, relationship.name())
+  }
+
+  def doesTagHaveRelationship(tag: Tag, relationship: Edge): Boolean = {
+    doesNodeHaveRelationship("Tag", "name", tag.name, relationship.name())
   }
 
   /**

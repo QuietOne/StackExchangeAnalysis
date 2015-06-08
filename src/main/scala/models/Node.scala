@@ -21,13 +21,15 @@ trait Node
 case class Question(val question_id: Int,
                     val link: String,
                     val tags: List[String] = null,
-                    val view_count: Int = 0,
-                    val favorite_count: Int = 0,
-                    val up_vote_count: Int = 0,
-                    val down_vote_count: Int = 0,
-                    val answer_count: Int = 0,
-                    val score: Int = 0,
-                    val is_answered: Boolean = false) extends Node
+                    val view_count: Double = 0,
+                    val favorite_count: Double = 0,
+                    val up_vote_count: Double = 0,
+                    val down_vote_count: Double = 0,
+                    val answer_count: Double = 0,
+                    val score: Double = 0,
+                    val is_answered: Boolean = false,
+                    val last_activity_date: Double = 0,
+                    val creation_date: Double = 0) extends Node
 
 /**
  * Tag

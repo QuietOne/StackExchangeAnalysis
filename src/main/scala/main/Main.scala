@@ -34,6 +34,10 @@ object Main extends App {
     val java = "java"
     val scala = "scala"
     val clojure = "clojure"
+    DownloadingProcedures.startDownloadingProcess()
+    DownloadingProcedures.forPMIMetrics(List(java, clojure, scala))
+    DownloadingProcedures.finishDownloadingProcess()
+    Neo4j.openConnection()
     println("Point Mutual Information:")
     print("Java & Scala:     ")
     println(Metrics.pointMutualInformation(java, scala))
@@ -41,6 +45,7 @@ object Main extends App {
     println(Metrics.pointMutualInformation(clojure, scala))
     print("Java & Clojure:   ")
     println(Metrics.pointMutualInformation(java, clojure))
+    Neo4j.closeConnection()
   }
 
   /**
@@ -49,9 +54,13 @@ object Main extends App {
    *                StackExchange before searching it
    */
   def recommendMeQuestionForTag(tagName: String): Unit = {
-    DownloadingProcedures.startDownloadingProcess()
-    DownloadingProcedures.downloadRecommenderData(tagName)
-    DownloadingProcedures.finishDownloadingProcess()
+//    DownloadingProcedures.startDownloadingProcess()
+//    try {
+//      DownloadingProcedures.downloadRecommenderData(tagName)
+//    } catch {
+//      case e: Exception => e.printStackTrace()
+//    }
+//    DownloadingProcedures.finishDownloadingProcess()
     println("Recommendation for: " + tagName)
     val recommendedQuestions: List[Question] = Recommender.recommendQuestionsForTag(tagName, size = 10, depth = 3)
     println("Questions can be reached at links:")
@@ -63,7 +72,7 @@ object Main extends App {
   //main program
   println("Starting")
 //  recommendMeQuestionForTag("artificial-intelligence")
-  similarityBetweenJavaScalaClojureUsingPMI()
+  recommendMeQuestionForTag("game-ai")
   println("Completed")
 
 }

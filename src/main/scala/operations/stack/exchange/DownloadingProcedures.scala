@@ -1,8 +1,10 @@
 package operations.stack.exchange
 
-import models.{Question, SynonymTagsEdge, Tag}
+import models._
 import operations.network.analysis.Metrics
 import operations.persistance.Neo4j
+
+import scala.collection.mutable.ListBuffer
 
 /**
  * Object with methods for downloading (getting data from StackExchange API and persisting it to Neo4j) for further
@@ -70,6 +72,29 @@ object DownloadingProcedures {
     println("Related tags persisted")
   }
 
+  def forPMIMetrics(tagNames: List[String]): Unit = {
+    println("Started downloading data for PMI metrics for tags: " + tagNames)
+    val tags: ListBuffer[Tag] = ListBuffer.empty
+    for (tagName <- tagNames) {
+      tags += new Tag(tagName)
+    }
+    Neo4j.persistTags(tags.result())
+    println("Tags persisted")
+    println("Started downloading askers")
+    for (tag <- tagNames) {
+      if (Neo4j.extractTopAskers(tag) == List()) {
+        val askers: List[User] = StackExchangeAPIExtractor.extractTopAskers(tag)
+        Neo4j.persistTopAskers(askers, tag)
+        println("\t" + tag + " top askers persisted")
+        for (asker <- askers) {
+          Neo4j.persistTopTags(StackExchangeAPIExtractor.extractTopTagsByUser(asker.user_id), asker)
+          println("\t\tPersisted top tags for user " + asker.user_id)
+        }
+      }
+    }
+    println("Top Askers persisted.")
+  }
+
   /**
    * Downloading procedure for recommender data.
    * @param tagName
@@ -77,16 +102,24 @@ object DownloadingProcedures {
   def downloadRecommenderData(tagName: String): Unit = {
     Neo4j.persistTag(new Tag(tagName))
     println("Tag " + tagName + " persisted")
-    val synonyms: List[SynonymTagsEdge] =
-      StackExchangeAPIExtractor.extractTagsSynonyms(tagName, page = 1, pageSize = 100)
-    Neo4j.persistSynonymTags(synonyms)
-    println("Synonyms for tag " + tagName + " persisted")
+    if (Neo4j.extractSynonymTagsIncludingMe(tagName).length <= 1) {
+      val synonyms: List[SynonymTagsEdge] =
+        StackExchangeAPIExtractor.extractTagsSynonyms(tagName, page = 1, pageSize = 100)
+      Neo4j.persistSynonymTags(synonyms)
+      println("Synonyms for tag " + tagName + " persisted")
+    } else {
+      println("Synonyms for tag " + tagName + " are already in database")
+    }
     val allSynonymTags: List[Tag] = Neo4j.extractSynonymTagsIncludingMe(tagName)
     for (tag <- allSynonymTags) {
       println("Starting download process for tag: " + tag.name)
-      val questions: List[Question] = StackExchangeAPIExtractor.extractFAQ(tag.name, page = 1, pageSize = 100)
-      Neo4j.persistFAQ(tag.name, questions)
-      println("\tFAQ persisted")
+      if (!Neo4j.doesTagHaveRelationship(tag, new FAQEdge)) {
+        val questions: List[Question] = StackExchangeAPIExtractor.extractFAQ(tag.name, page = 1, pageSize = 100)
+        Neo4j.persistFAQ(tag.name, questions)
+        println("\tFAQ persisted")
+      } else {
+        println("\tFAQ is already in database")
+      }
       val monteCarloQuestions: List[Question] =
         StackExchangeAPIExtractor.extractBelongsQuestions(tag.name, page = 1, pageSize = 100)
       Neo4j.persistQuestions(monteCarloQuestions)
@@ -99,22 +132,22 @@ object DownloadingProcedures {
         var tagNames: List[String] = List()
         for (iTag <- tags) tagNames = iTag.name :: tagNames
         println("\t\tStart downloading data for related tags")
-        DownloadingProcedures.forTagSimilarityMetrics(tagNames)
+        DownloadingProcedures.forPMIMetrics(tagNames)
         for (iTag <- tagNames) {
-          if (tagName.ne(iTag)) {
+          if (tagName.ne(iTag) && !tagName.equals(iTag)) {
             println("\t\t\tCalculating metrics for " + tagName + " & " + iTag)
-            if (Metrics.tagSimilarity(tagName, iTag) > 60) {
-              Neo4j.persistSimilarTagsEdge(tagName, iTag)
-              println("\t\t\tSimilar; Start downloading extra data for " + iTag)
+            val pmi = Metrics.pointMutualInformation(tagName, iTag)
+            Neo4j.persistPMI(tagName, iTag, pmi)
+            if (!Neo4j.doesTagHaveRelationship(Tag(iTag), new FAQEdge)) {
               val iQuestions: List[Question] = StackExchangeAPIExtractor.extractFAQ(iTag)
               Neo4j.persistFAQ(iTag, iQuestions)
               println("\t\t\tFAQ for " + iTag + " persisted")
-              val iMonteCarlo: List[Question] = StackExchangeAPIExtractor.extractBelongsQuestions(iTag)
-              Neo4j.persistQuestions(iMonteCarlo)
-              println("\t\t\tDownloading data for " + iTag + " completed")
             } else {
-              println("\t\t\tNot Similar;")
+              println("\t\t\tFAQ for " + iTag + " are already in database")
             }
+            val iMonteCarlo: List[Question] = StackExchangeAPIExtractor.extractBelongsQuestions(iTag)
+            Neo4j.persistQuestions(iMonteCarlo)
+            println("\t\t\tDownloading data for " + iTag + " completed")
           }
         }
       }

@@ -3,6 +3,8 @@ package operations.recommendations
 import models.Question
 import operations.persistance.Neo4j
 
+import scala.collection.mutable.ListBuffer
+
 
 object Recommender {
 
@@ -19,9 +21,12 @@ object Recommender {
     val alpha: Double = 0.05
     val weightScore: Double = 0.8
     val weightAnswerCount: Double = 0.3
-    val weightIsAnswered: Double = 2000
-    val weightViewCount: Double = 0.
-    val weightBelongs: Double = 1000000
+    val weightIsAnswered: Double = 1
+    val weightViewCount: Double = 0.8
+    val weightBelongs: Double = 1
+    val weightCreationDate: Double = 0.03
+    val weightLastActivityDate: Double = 0.03
+    val declusteringBonus: Double = 1
     println("Loaded constants")
     Neo4j.openConnection()
     println("Opened connection")
@@ -35,13 +40,33 @@ object Recommender {
           mapper += q.question_id.toString -> wrapper
         }
       }
-      println("Added questions from " + i + ". depth")
+      println("Added " + questions.length + " questions from " + i + ". depth")
     }
     println("Extracted relevant data")
-    //calculating values
-    var list: List[Wrapper] = List()
+    println("Normalization started")
+    val maxScore = mapper.valuesIterator.maxBy(_.question.score).question.score
+    val maxAnswerCount = mapper.valuesIterator.maxBy(_.question.answer_count).question.answer_count
+    val maxViewCount = mapper.valuesIterator.maxBy(_.question.view_count).question.view_count
+    val maxCreationDate = mapper.valuesIterator.maxBy(_.question.creation_date).question.creation_date
+    val maxLastActivityDate = mapper.valuesIterator.maxBy(_.question.last_activity_date).question.last_activity_date
+    val normalizedList = ListBuffer.empty[Wrapper]
     for (w <- mapper) {
       val wrapper = w._2
+      val question = wrapper.question
+      normalizedList += wrapper.copy(
+        value = wrapper.value / depth,
+        question = question.copy(
+          score = question.score / maxScore,
+          answer_count = question.answer_count / maxAnswerCount,
+          view_count = question.view_count / maxViewCount,
+          creation_date = question.creation_date / maxCreationDate,
+          last_activity_date = question.last_activity_date / maxLastActivityDate
+        ))
+    }
+    println("Normalization ended")
+    //calculating values
+    var list: List[Wrapper] = List()
+    for (wrapper <- normalizedList.result()) {
       val isAnswered = if (wrapper.question.is_answered) 1 else 0
       val belongs = if (Neo4j.ifQuestionBelongToTag(wrapper.question.question_id.toString, tagName)) 1 else 0
       val calculation = Math.pow(alpha, wrapper.value) *
@@ -49,16 +74,50 @@ object Recommender {
           (isAnswered * weightIsAnswered) +
           (wrapper.question.view_count * weightViewCount) +
           (wrapper.question.score * weightScore) +
+          (wrapper.question.creation_date * weightCreationDate) +
+          (wrapper.question.last_activity_date * weightLastActivityDate) +
           (belongs * weightBelongs))
       list = new Wrapper(calculation, wrapper.question) :: list
     }
-    println("Calculated data")
+    println("Calculated data for " + list.length + " questions.")
+    case class Cluster(val name: String, val value: Double)
+    val averagePMIValue = Neo4j.averagePMIValue
+    val tags = Neo4j.extractClusterForTag(tagName)
+    val clusteringList: ListBuffer[Cluster] = ListBuffer.empty
+    for (tag <- tags) {
+      var edgeTotal: Double = 0
+      var edgeCount: Double = 0
+      for (tag2 <- tags) {
+        val pmi = Neo4j.extractPMI(tag.name, tagName)
+        if (pmi!= null && pmi.weight > averagePMIValue) edgeTotal+=1
+        edgeCount+=1
+      }
+      clusteringList += new Cluster(tag.name, edgeTotal / edgeCount)
+      println("\tCluster " + tag.name + " added.")
+    }
+    println("Calculated values of clusters")
+    val desclusteringList: ListBuffer[Wrapper] = ListBuffer.empty
+    for (wrapper <- list) {
+      var bonus: Double = 0
+      for (cluster <- clusteringList) {
+        if (Neo4j.ifQuestionIsInRelationshipWithTag(wrapper.question.question_id.toString, cluster.name)) {
+          bonus += cluster.value
+        }
+      }
+      desclusteringList += wrapper.copy(value = wrapper.value + bonus * declusteringBonus)
+      if (bonus >0) {
+        println("\tDecluster bonus for question " + wrapper.question.link + "added.")
+      }
+    }
+    list = desclusteringList.result()
+    println("Added declustering bonus")
     list = list.sortWith(_.value > _.value)
     Neo4j.closeConnection()
     println("Closed connection")
     var returnee: List[Question] = List()
     for (i <- 0 to size) {
       returnee = list(i).question :: returnee
+//      println(list(i).value + " " + list(i).question.link)
     }
     returnee
   }
